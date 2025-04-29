@@ -1,0 +1,52 @@
+name: Exécuter les tests PHPUnit
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  php-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: ci_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+    - name: Cloner le code
+      uses: actions/checkout@v3
+
+    - name: Configurer PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.1'
+        extensions: mbstring, intl, pdo_mysql
+        coverage: none
+
+    - name: Installer Composer
+      run: composer install --no-progress --prefer-dist
+
+    - name: Copier .env
+      run: cp env .env
+
+    - name: Créer la base de données de test
+      run: |
+        mysql -h 127.0.0.1 -P 3306 -u root -proot -e "CREATE DATABASE IF NOT EXISTS ci_test;"
+
+    - name: Exécuter les migrations
+      run: php spark migrate
+
+    - name: Lancer les tests PHPUnit
+      run: vendor/bin/phpunit
